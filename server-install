@@ -1,0 +1,86 @@
+#!/bin/bash
+
+docker ps
+
+if [ $? -eq 0 ]; then
+    echo "Setup has already been performed"
+    exit 0
+fi
+
+sudo apt-get update
+
+sudo apt-get install -y curl cron
+
+sudo apt install -y lsb-release ca-certificates apt-transport-https software-properties-common gnupg2
+
+sudo fallocate -l 4G /swapfile
+
+sudo chmod 600 /swapfile
+
+sudo mkswap /swapfile
+
+sudo swapon /swapfile
+
+sudo cp /etc/fstab /etc/fstab.bak
+
+sudo echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+#antigo
+#sudo wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg
+
+#novo
+wget -qO - https://packages.sury.org/php/apt.gpg | sudo apt-key add -
+
+#antigo
+# echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/php.list
+
+# novo
+echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/sury-php.list
+
+sudo apt-get update
+
+sudo apt-get install -y php-cli
+
+timestamp=$(date +%s)
+
+sudo curl -sSL https://cache.promovaweb.com/cli/promovaweb?$timestamp -o /bin/promovaweb
+
+sudo chmod +x /bin/promovaweb
+
+sudo curl -sSL https://cache.promovaweb.com/cli/updater?$timestamp -o /bin/promovaweb-updater
+
+sudo chmod +x /bin/promovaweb-updater
+
+echo $1 >/root/.server
+
+echo $2 >/root/.token
+
+sudo curl -sSL https://cache.promovaweb.com/cli/crontab -o /etc/cron.d/promovaweb-updater
+
+sudo chmod +744 /etc/cron.d/promovaweb-updater
+
+service cron reload
+
+sudo promovaweb server:ip
+
+sleep 10
+
+sudo promovaweb server:prepare:system
+
+sleep 15 # waiting for all services to be up and running
+
+docker pull portainer/portainer-ce
+
+docker pull traefik:latest
+
+sudo promovaweb server:portainer:install
+
+sleep 10 # waiting for all services to be up and running
+
+sudo promovaweb server:traefik:install
+
+sleep 2 # waiting for all services to be up and running
+
+sudo promovaweb server:prepare:finish
+
+echo "Setup Finalizado."
